@@ -5,5 +5,4 @@ docker compose exec -it clickhouse1 \
     clickhouse-client --queries-file /scripts/query.sql \
         --echo \
         --verbose \
-        --print-stats \
         --format PrettyCompact

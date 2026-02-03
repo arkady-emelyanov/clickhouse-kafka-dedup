@@ -6,14 +6,20 @@
                 <replica>
                     <host>clickhouse1</host>
                     <port>9000</port>
+                    <user>default</user>
+                    <password>password123</password>                    
                 </replica>
                 <replica>
                     <host>clickhouse2</host>
                     <port>9000</port>
+                    <user>default</user>
+                    <password>password123</password>                    
                 </replica>
                 <replica>
                     <host>clickhouse3</host>
                     <port>9000</port>
+                    <user>default</user>
+                    <password>password123</password>
                 </replica>
             </shard>
         </my_cluster>

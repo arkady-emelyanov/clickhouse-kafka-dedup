@@ -16,3 +16,10 @@ FROM (
 ) 
 WHERE Status = 'ALERTING'
 GROUP BY Severity;
+
+--- current state of all sensors (alternative method)
+SELECT
+    argMaxMerge(Severity) AS Severity,
+    argMaxMerge(Status) AS Status
+FROM sensors_state_agg
+GROUP BY SensorID;

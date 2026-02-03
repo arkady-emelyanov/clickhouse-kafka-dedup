@@ -150,8 +150,8 @@ def generate_report():
             <h1>Sensor Simulation Results</h1>
             
             <div class="stats-bar">
-                <div class="stat-card"><span class="stat-val">{len(df):,}</span> Total state changes</div>
-                <div class="stat-card"><span class="stat-val">{len(alerting_df):,}</span> Total number of events in ALERTING state</div>
+                <div class="stat-card"><span class="stat-val">{len(df):,}</span> Total number of events</div>
+                <div class="stat-card"><span class="stat-val">{len(alerting_df):,}</span> Total number of events with ALERTING state</div>
                 <div class="stat-card"><span class="stat-val">{completed_cycles:,}</span> Completed alert cycles</div>
             </div>
             

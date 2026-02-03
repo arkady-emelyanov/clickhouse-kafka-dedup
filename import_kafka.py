@@ -5,10 +5,10 @@ from pyspark.sql.functions import col, struct, to_json
 spark = SparkSession.builder \
     .appName("SensorBatchProcessing") \
     .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1") \
-    .config("spark.sql.legacy.parquet.nanosAsLong", "true") \
-    .config("spark.executor.memory", "16g") \
-    .config("spark.driver.memory", "16g") \
-    .config("spark.executor.memoryOverhead", "4g") \
+    .config("spark.sql.jsonGenerator.ignoreNullFields", "false") \
+    .config("spark.executor.memory", "32g") \
+    .config("spark.driver.memory", "32g") \
+    .config("spark.executor.memoryOverhead", "8g") \
     .config("spark.memory.offHeap.enabled", "true") \
     .config("spark.memory.offHeap.size", "8g") \
     .getOrCreate()
@@ -26,10 +26,12 @@ kafka_df = sorted_df.selectExpr(
 )
 
 # 4. Write to Kafka and close
+#kafka_df.show(5, truncate=False)
 kafka_df.write \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "localhost:9092") \
     .option("topic", "sensor-alerts") \
+    .option("kafka.enable.idempotence", "false") \
     .save()
 
 print("Data successfully sorted and pushed to Kafka.")
