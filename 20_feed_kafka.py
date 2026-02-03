@@ -6,6 +6,11 @@ spark = SparkSession.builder \
     .appName("SensorBatchProcessing") \
     .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1") \
     .config("spark.sql.legacy.parquet.nanosAsLong", "true") \
+    .config("spark.executor.memory", "16g") \
+    .config("spark.driver.memory", "16g") \
+    .config("spark.executor.memoryOverhead", "4g") \
+    .config("spark.memory.offHeap.enabled", "true") \
+    .config("spark.memory.offHeap.size", "8g") \
     .getOrCreate()
 
 # 1. Read all parquet files in the directory as a single DataFrame
