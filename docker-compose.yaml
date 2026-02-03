@@ -65,6 +65,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./schema.sql:/scripts/schema.sql
+      - ./query.sql:/scripts/query.sql
       - ./clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
       - ./clickhouse/macros1.xml:/etc/clickhouse-server/config.d/macros.xml
       - clickhouse1_data:/var/lib/clickhouse      

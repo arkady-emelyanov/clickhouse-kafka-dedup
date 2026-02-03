@@ -8,8 +8,8 @@ from multiprocessing import Pool, cpu_count
 
 # --- Configuration ---
 DATA_DIR = "./data"
-NUM_SENSORS = 500_000
-SIM_DAYS = 14
+NUM_SENSORS = 5_000_000
+SIM_DAYS = 10
 TICKS = SIM_DAYS * 24 * 60
 CORES = cpu_count()-1 if cpu_count() > 1 else 1
 SENSOR_PROFILE_CHATTY = 'chatty'

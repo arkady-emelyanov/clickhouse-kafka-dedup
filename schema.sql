@@ -47,18 +47,3 @@ SELECT
     Severity,
     fromUnixTimestamp64Nano(UpdatedAt) AS UpdatedAt
 FROM sensors_kafka_stream;
-
---- sample query
--- SELECT 
---     Severity, 
---     count() 
--- FROM (
---     SELECT 
---         SensorID, 
---         argMax(Severity, UpdatedAt) as Severity,
---         argMax(Status, UpdatedAt) as Status
---     FROM sensors_latest
---     GROUP BY SensorID
--- ) 
--- WHERE Status = 'ALERTING'
--- GROUP BY Severity;
