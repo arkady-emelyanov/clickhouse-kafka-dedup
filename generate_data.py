@@ -6,121 +6,182 @@ import shutil
 from datetime import datetime, timedelta
 from multiprocessing import Pool, cpu_count
 
-# --- Configuration ---
+# ---------------- Configuration ----------------
+
 DATA_DIR = "./data"
 NUM_SENSORS = 5_000_000
 SIM_DAYS = 10
-TICKS = SIM_DAYS * 24 * 60
-CORES = cpu_count()-1 if cpu_count() > 1 else 1
-SENSOR_PROFILE_CHATTY = 'chatty'
-SENSOR_PROFILE_STABLE = 'stable'
+MINUTES_PER_DAY = 1440
+SIM_MINUTES = SIM_DAYS * MINUTES_PER_DAY
 
+CORES = cpu_count() - 1 if cpu_count() > 1 else 1
 
-# Cleanup existing data directory
+SENSOR_PROFILE_CHATTY = "chatty"
+SENSOR_PROFILE_STABLE = "stable"
+
+P_ALERT_CHATTY = 0.001736
+P_ALERT_STABLE = 0.0001
+P_TO_OK = 0.02
+P_CHANGE_SEV = 0.05
+
+SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+SIM_START = datetime(2026, 1, 1)
+SIM_END = SIM_START + timedelta(minutes=SIM_MINUTES)
+
+# ---------------- Utilities ----------------
+
 def cleanup():
     if os.path.exists(DATA_DIR):
         shutil.rmtree(DATA_DIR)
     os.makedirs(DATA_DIR)
 
 
-# Worker function
-def run_sensor_chunk(chunk_id, num_sensors_in_chunk):    
-    """Worker function for a subset of sensors."""
-    print(f"Starting chunk {chunk_id} with {num_sensors_in_chunk} sensors.")
+def day_index(ts):
+    d = int((ts - SIM_START).total_seconds() // 60) // MINUTES_PER_DAY
+    if d < 0:
+        return 0
+    if d >= SIM_DAYS:
+        return SIM_DAYS - 1
+    return d
 
-    # Assign profiles
-    profiles = np.random.choice(
-        [SENSOR_PROFILE_CHATTY, SENSOR_PROFILE_STABLE], 
-        size=num_sensors_in_chunk, 
-        p=[0.30, 0.70]
+
+# ---------------- Worker ----------------
+
+def run_sensor_chunk(chunk_id, num_sensors):
+    rng = np.random.default_rng(seed=42 + chunk_id)
+
+    sensor_ids = [str(uuid.uuid4()) for _ in range(num_sensors)]
+    profiles = rng.choice(
+        [SENSOR_PROFILE_CHATTY, SENSOR_PROFILE_STABLE],
+        size=num_sensors,
+        p=[0.30, 0.70],
     )
 
-    # Initialize subset state
-    state_df = pd.DataFrame({
-        'SensorID': [str(uuid.uuid4()) for _ in range(num_sensors_in_chunk)],
-        'StartTime': pd.NaT,
-        'EndTime': pd.NaT,
-        'Status': 'OK',
-        'Severity': None,
-        'UpdatedAt': pd.NaT,
-        'Profile': None,
-    })
+    day_buffers = {d: [] for d in range(SIM_DAYS)}
 
-    state_df['Profile'] = profiles
+    def emit(row):
+        d = day_index(row["UpdatedAt"])
+        day_buffers[d].append(row)
 
-    severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
-    current_sim_time = datetime(2026, 1, 1)
-    batch_buffer = []
+    print(f"Chunk {chunk_id} starting: {num_sensors} sensors")
+    for i in range(num_sensors):
+        sensor_id = sensor_ids[i]
+        profile = profiles[i]
+        p_alert = P_ALERT_CHATTY if profile == SENSOR_PROFILE_CHATTY else P_ALERT_STABLE
 
-    for tick in range(TICKS):
-        current_sim_time += timedelta(minutes=1)
-        
-        # State Masks
-        mask_ok = state_df['Status'] == 'OK'
-        mask_alerting = state_df['Status'] == 'ALERTING'
+        state = "OK"
+        alert_start = None
+        current_sev = None
+        t = SIM_START
 
-        # Define probabilities based on profile
-        # High frequency sensors use ~0.0017 to hit 2-3 times a day
-        # Stable sensors use a much lower number (e.g., once a week)
-        probs = np.where(state_df['Profile'] == SENSOR_PROFILE_CHATTY, 0.001736, 0.0001)
-        
-        # Probabilities
-        to_alert = (np.random.rand(num_sensors_in_chunk) < probs) & mask_ok
-        to_ok = (np.random.rand(num_sensors_in_chunk) < 0.02) & mask_alerting
-        to_change_sev = (np.random.rand(num_sensors_in_chunk) < 0.05) & mask_alerting & (~to_ok)
+        while t < SIM_END:
 
-        changed_indices = []
+            if state == "OK":
+                wait = rng.geometric(p_alert)
+                t = t + timedelta(minutes=int(wait))
+                if t >= SIM_END:
+                    break
 
-        if to_alert.any():
-            idx = state_df.index[to_alert]
-            state_df.loc[idx, ['Status', 'StartTime', 'EndTime']] = ['ALERTING', current_sim_time, pd.NaT]
-            state_df.loc[idx, 'Severity'] = np.random.choice(severities, len(idx))
-            state_df.loc[idx, 'UpdatedAt'] = current_sim_time
-            changed_indices.extend(idx)
+                # OK → ALERTING
+                state = "ALERTING"
+                alert_start = t
+                current_sev = rng.choice(SEVERITIES)
 
-        if to_ok.any():
-            idx = state_df.index[to_ok]
-            state_df.loc[idx, ['Status', 'EndTime', 'Severity']] = ['OK', current_sim_time, None]
-            state_df.loc[idx, 'UpdatedAt'] = current_sim_time
-            changed_indices.extend(idx)
+                emit({
+                    "SensorID": sensor_id,
+                    "StartTime": alert_start,
+                    "EndTime": pd.NaT,
+                    "Status": "ALERTING",
+                    "Severity": current_sev,
+                    "UpdatedAt": t,
+                })
 
-        if to_change_sev.any():
-            idx = state_df.index[to_change_sev]
-            state_df.loc[idx, 'Severity'] = np.random.choice(severities, len(idx))
-            state_df.loc[idx, 'UpdatedAt'] = current_sim_time
-            changed_indices.extend(idx)
+            else:  # ALERTING
+                wait_ok = rng.geometric(P_TO_OK)
+                wait_sev = rng.geometric(P_CHANGE_SEV)
 
-        # Buffer changes
-        if changed_indices:
-            batch_buffer.append(state_df.iloc[list(set(changed_indices))].copy())
+                if wait_sev < wait_ok:
+                    # severity change
+                    t = t + timedelta(minutes=int(wait_sev))
+                    if t >= SIM_END:
+                        break
 
-        # Materialize
-        if tick % 1440 == 0 and batch_buffer:
-            output_df = pd.concat(batch_buffer)            
-            output_df = output_df.drop(columns=['Profile'], errors='ignore')
-            file_name = f"{DATA_DIR}/chunk_{chunk_id}_tick_{tick}.parquet"
-            output_df.to_parquet(file_name, engine='pyarrow', index=False)
-            batch_buffer = []
-            print(f"Chunk {chunk_id} at tick {tick}: wrote {len(output_df)} records.")
+                    current_sev = rng.choice(SEVERITIES)
 
-    return f"Chunk {chunk_id} complete."
+                    emit({
+                        "SensorID": sensor_id,
+                        "StartTime": alert_start,
+                        "EndTime": pd.NaT,
+                        "Status": "ALERTING",
+                        "Severity": current_sev,
+                        "UpdatedAt": t,
+                    })
+
+                else:
+                    # ALERTING → OK
+                    t = t + timedelta(minutes=int(wait_ok))
+                    if t >= SIM_END:
+                        break
+
+                    emit({
+                        "SensorID": sensor_id,
+                        "StartTime": alert_start,
+                        "EndTime": t,
+                        "Status": "OK",
+                        "Severity": None,
+                        "UpdatedAt": t,
+                    })
+
+                    state = "OK"
+                    alert_start = None
+                    current_sev = None
+
+        # ---- NEW: if we're still ALERTING when the simulation ends, emit one final open ALERTING row ----
+        if state == "ALERTING":
+            # use the last minute inside the simulation as the UpdatedAt so it maps to the last day
+            final_updated_at = SIM_END - timedelta(minutes=1)
+            emit({
+                "SensorID": sensor_id,
+                "StartTime": alert_start,
+                "EndTime": pd.NaT,
+                "Status": "ALERTING",
+                "Severity": current_sev,
+                "UpdatedAt": final_updated_at,
+            })
+        # -----------------------------------------------------------------------------------------------
+
+    # write parquet
+    print(f"Chunk {chunk_id} writing parquet data")
+    for d, rows in day_buffers.items():
+        if not rows:
+            continue
+        df = pd.DataFrame(rows)
+        df = df[
+            ["SensorID", "StartTime", "EndTime", "Status", "Severity", "UpdatedAt"]
+        ]
+        path = f"{DATA_DIR}/chunk_{chunk_id}_day_{d}.parquet"
+        df.to_parquet(path, engine="pyarrow", index=False, compression="snappy")
+        print(f"Chunk {chunk_id} wrote day {d}: {len(df)} rows")
+
+    return f"Chunk {chunk_id} done"
+
+
+# ---------------- Main ----------------
 
 if __name__ == "__main__":
-    # Initial cleanup
     cleanup()
-    
-    # Calculate sensors per process
+
     sensors_per_core = NUM_SENSORS // CORES
     tasks = [(i, sensors_per_core) for i in range(CORES)]
-    
-    print(f"Starting parallel generation with {CORES} processes...")
-    print(f"Simulating {NUM_SENSORS} sensors for {SIM_DAYS} days.")
 
-    # Start multiprocessing pool
-    with Pool(processes=CORES) as pool:
+    print(f"Running {CORES} workers")
+    print(f"Simulating {NUM_SENSORS} sensors for {SIM_DAYS} days")
+
+    with Pool(CORES) as pool:
         results = pool.starmap(run_sensor_chunk, tasks)
 
-    for res in results:
-        print(res)
-    
-    print("All sensor data generated successfully.")
+    for r in results:
+        print(r)
+
+    print("✅ All data generated")

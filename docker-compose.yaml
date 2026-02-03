@@ -63,9 +63,13 @@ services:
     ports: ["8123:8123", "9000:9000"]
     depends_on: [zookeeper, kafka1, kafka2, kafka3]
     restart: unless-stopped
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password123
     volumes:
-      - ./schema.sql:/scripts/schema.sql
-      - ./query.sql:/scripts/query.sql
+      - ./schema_drop.sql:/scripts/schema_drop.sql
+      - ./schema_create.sql:/scripts/schema_create.sql
+      - ./schema_query.sql:/scripts/schema_query.sql
       - ./clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
       - ./clickhouse/macros1.xml:/etc/clickhouse-server/config.d/macros.xml
       - clickhouse1_data:/var/lib/clickhouse      
@@ -75,6 +79,9 @@ services:
     container_name: clickhouse2
     depends_on: [zookeeper, kafka1, kafka2, kafka3]
     restart: unless-stopped
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password123    
     volumes:
       - ./clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
       - ./clickhouse/macros2.xml:/etc/clickhouse-server/config.d/macros.xml
@@ -85,6 +92,9 @@ services:
     container_name: clickhouse3
     depends_on: [zookeeper, kafka1, kafka2, kafka3]
     restart: unless-stopped
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=password123    
     volumes:
       - ./clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
       - ./clickhouse/macros3.xml:/etc/clickhouse-server/config.d/macros.xml

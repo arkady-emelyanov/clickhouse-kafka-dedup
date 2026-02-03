@@ -44,8 +44,11 @@ def count_alert_cycles(df):
 def generate_report():
     df = load_data()
     if df is None: 
-        return
+        return    
     print("Data loaded, generating visualizations...")
+
+    # Get number of unique sensors
+    unique_sensors = df['SensorID'].nunique()
 
     # Ensure Timestamps are standardized
     df['StartTime'] = pd.to_datetime(df['StartTime'])
@@ -150,8 +153,9 @@ def generate_report():
             <h1>Sensor Simulation Results</h1>
             
             <div class="stats-bar">
-                <div class="stat-card"><span class="stat-val">{len(df):,}</span> Total state changes</div>
-                <div class="stat-card"><span class="stat-val">{len(alerting_df):,}</span> Total number of events in ALERTING state</div>
+                <div class="stat-card"><span class="stat-val">{unique_sensors:,}</span> Total number of unique sensors</div>
+                <div class="stat-card"><span class="stat-val">{len(df):,}</span> Total number of events</div>
+                <div class="stat-card"><span class="stat-val">{len(alerting_df):,}</span> Total number of ALERTING events</div>
                 <div class="stat-card"><span class="stat-val">{completed_cycles:,}</span> Completed alert cycles</div>
             </div>
             
