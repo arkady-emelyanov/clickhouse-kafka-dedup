@@ -1,32 +1,31 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, struct, to_json
 
-# Define the schema to match the emulator output
-sensor_schema = StructType([
-    StructField("SensorID", StringType(), False),
-    StructField("StartTime", TimestampType(), True),
-    StructField("EndTime", TimestampType(), True),
-    StructField("Status", StringType(), False),
-    StructField("Severity", StringType(), True)
-])
-
+# Spark 4.1.1 Batch Session
 spark = SparkSession.builder \
-    .appName("SensorProcessing") \
-    .config("spark.sql.streaming.checkpointLocation", "./checkpoints") \
+    .appName("SensorBatchProcessing") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.1") \
+    .config("spark.sql.legacy.parquet.nanosAsLong", "true") \
     .getOrCreate()
 
-# Read from the directory where the emulator drops files
-raw_stream = spark.readStream \
-    .schema(sensor_schema) \
-    .parquet("./data/")
+# 1. Read all parquet files in the directory as a single DataFrame
+df = spark.read.parquet("./data/")
 
-# Write to Kafka
-query = raw_stream.selectExpr("CAST(SensorID AS STRING) AS key", "to_json(struct(*)) AS value") \
-    .writeStream \
+# 2. Sort globally by UpdatedAt
+sorted_df = df.orderBy(col("UpdatedAt").asc())
+
+# 3. Prepare for Kafka: Key must be String/Binary, Value must be String/Binary
+kafka_df = sorted_df.selectExpr(
+    "CAST(SensorID AS STRING) AS key", 
+    "to_json(struct(*)) AS value"
+)
+
+# 4. Write to Kafka and close
+kafka_df.write \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "localhost:9092") \
-    .option("topic", "sensor-updates") \
-    .start()
+    .option("topic", "sensor-alerts") \
+    .save()
 
-query.awaitTermination()
+print("Data successfully sorted and pushed to Kafka.")
+spark.stop()

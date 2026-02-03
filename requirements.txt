@@ -1,7 +1,7 @@
-pandas
-numpy
-pyarrow
-fastparquet
-pyspark
-matplotlib
-seaborn
+pandas==3.0.0
+numpy==2.4.2
+pyarrow==23.0.0
+fastparquet==2025.12.0
+pyspark==4.1.1
+matplotlib==3.10.8
+seaborn==0.13.2
