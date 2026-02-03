@@ -2,7 +2,7 @@
 set -e
 
 docker compose exec -it clickhouse1 \
-    clickhouse-client --queries-file /scripts/query.sql \
+    clickhouse-client --queries-file /scripts/schema_query.sql \
         --echo \
         --verbose \
         --format PrettyCompact

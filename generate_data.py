@@ -137,6 +137,20 @@ def run_sensor_chunk(chunk_id, num_sensors):
                     alert_start = None
                     current_sev = None
 
+        # ---- NEW: if we're still ALERTING when the simulation ends, emit one final open ALERTING row ----
+        if state == "ALERTING":
+            # use the last minute inside the simulation as the UpdatedAt so it maps to the last day
+            final_updated_at = SIM_END - timedelta(minutes=1)
+            emit({
+                "SensorID": sensor_id,
+                "StartTime": alert_start,
+                "EndTime": pd.NaT,
+                "Status": "ALERTING",
+                "Severity": current_sev,
+                "UpdatedAt": final_updated_at,
+            })
+        # -----------------------------------------------------------------------------------------------
+
     # write parquet
     print(f"Chunk {chunk_id} writing parquet data")
     for d, rows in day_buffers.items():
