@@ -8,7 +8,13 @@ import base64
 
 # --- Configuration ---
 DATA_DIR = "./data"
-REPORT_FILE = "sensor_report.html"
+ENDPOINT_METADATA = "endpoint_metadata"
+ENDPOINT_EVENTS = "endpoint_events"
+
+REPORT_FILE = "data_report.html"
+STATUS_OK = "OK"
+STATUS_ALERTING = "ALERTING"
+
 
 def fig_to_base64(fig):
     """Converts a matplotlib figure to a base64 string for HTML embedding."""
@@ -19,11 +25,11 @@ def fig_to_base64(fig):
     return f"data:image/png;base64,{img_str}"
 
 def load_data():
-    files = glob.glob(f"{DATA_DIR}/*.parquet")
+    files = glob.glob(f"{DATA_DIR}/{ENDPOINT_EVENTS}/*.parquet")
     if not files:
         print("No parquet files found. Check your generation script output.")
         return None
-    print(f"Loading {len(files)} daily batches...")
+    print(f"Loading {len(files)} parquet files...")
     return pd.concat([pd.read_parquet(f) for f in files])
 
 def count_alert_cycles(df):
@@ -34,7 +40,7 @@ def count_alert_cycles(df):
     # A completed cycle is defined by an 'OK' status that has 
     # both a StartTime and an EndTime (the duration of the alert).
     completed_cycles = df[
-        (df['Status'] == 'OK') & 
+        (df['Status'] == STATUS_OK) & 
         (df['StartTime'].notna()) & 
         (df['EndTime'].notna())
     ]
@@ -45,10 +51,11 @@ def generate_report():
     df = load_data()
     if df is None: 
         return    
-    print("Data loaded, generating visualizations...")
+    print(f"Loaded {len(df)} rows, generating visualizations...")
 
     # Get number of unique sensors
-    unique_sensors = df['SensorID'].nunique()
+    unique_event_ids = df['EventID'].nunique()
+    unique_device_ids = df['DeviceID'].nunique()
 
     # Ensure Timestamps are standardized
     df['StartTime'] = pd.to_datetime(df['StartTime'])
@@ -57,7 +64,7 @@ def generate_report():
     completed_cycles = count_alert_cycles(df)
 
     # 1. Alert Frequency
-    alerting_df = df[df['Status'] == 'ALERTING'].copy()
+    alerting_df = df[df['Status'] == STATUS_ALERTING].copy()
     fig1, ax1 = plt.subplots(figsize=(12, 6))
     if not alerting_df.empty:
         trend = alerting_df.set_index('StartTime').resample('1h').size()
@@ -69,7 +76,7 @@ def generate_report():
     plt.close(fig1)
 
     # 2. Duration Distribution
-    ok_df = df[df['Status'] == 'OK'].dropna(subset=['StartTime', 'EndTime']).copy()
+    ok_df = df[df['Status'] == STATUS_OK].dropna(subset=['StartTime', 'EndTime']).copy()
     fig2, ax2 = plt.subplots(figsize=(12, 6))
     if not ok_df.empty:
         ok_df['DurMin'] = (ok_df['EndTime'] - ok_df['StartTime']).dt.total_seconds() / 60
@@ -108,7 +115,7 @@ def generate_report():
 
     # 4. Completed Alert Cycles Over Time
     completed_cycles_df = df[
-        (df['Status'] == 'OK') & 
+        (df['Status'] == STATUS_OK) & 
         (df['StartTime'].notna())
     ].copy()
 
@@ -133,7 +140,7 @@ def generate_report():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Sensor Emulation Report</title>
+        <title>Endpoint Simulation Report</title>
         <style>
             body {{ font-family: -apple-system, sans-serif; margin: 40px; background: #fafafa; color: #333; }}
             .container {{ max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
@@ -150,11 +157,14 @@ def generate_report():
     </head>
     <body>
         <div class="container">
-            <h1>Sensor Simulation Results</h1>
+            <h1>Endpoint Simulation Report</h1>
             
             <div class="stats-bar">
-                <div class="stat-card"><span class="stat-val">{unique_sensors:,}</span> Total number of unique sensors</div>
+                <div class="stat-card"><span class="stat-val">{unique_device_ids:,}</span> Number of unique DeviceIDs</div>
+                <div class="stat-card"><span class="stat-val">{unique_event_ids:,}</span> Number of unique EventIDs</div>
                 <div class="stat-card"><span class="stat-val">{len(df):,}</span> Total number of events</div>
+            </div>
+            <div class="stats-bar">
                 <div class="stat-card"><span class="stat-val">{len(alerting_df):,}</span> Total number of ALERTING events</div>
                 <div class="stat-card"><span class="stat-val">{completed_cycles:,}</span> Completed alert cycles</div>
             </div>

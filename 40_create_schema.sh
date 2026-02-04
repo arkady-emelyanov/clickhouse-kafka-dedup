@@ -12,7 +12,7 @@ echo "Resetting Kafka consumer group 'clickhouse-4' offsets to earliest..."
 docker compose exec -it kafka1 \
     kafka-consumer-groups --bootstrap-server localhost:29092 \
         --group clickhouse-4 \
-        --topic sensor-alerts \
+        --topic events \
         --reset-offsets \
         --to-earliest \
         --execute

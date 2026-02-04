@@ -14,23 +14,23 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 # 1. Read all parquet files in the directory as a single DataFrame
-df = spark.read.parquet("./data/")
+df = spark.read.parquet("./data/endpoint_events/")
 
 # 2. Sort globally by UpdatedAt
 sorted_df = df.orderBy(col("UpdatedAt").asc())
 
 # 3. Prepare for Kafka: Key must be String/Binary, Value must be String/Binary
 kafka_df = sorted_df.selectExpr(
-    "CAST(SensorID AS STRING) AS key", 
+    "CAST(EventID AS STRING) AS key", 
     "to_json(struct(*)) AS value"
 )
 
 # 4. Write to Kafka and close
-#kafka_df.show(5, truncate=False)
+# kafka_df.show(5, truncate=False)
 kafka_df.write \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "localhost:9092") \
-    .option("topic", "sensor-alerts") \
+    .option("topic", "events") \
     .option("kafka.enable.idempotence", "false") \
     .save()
 
