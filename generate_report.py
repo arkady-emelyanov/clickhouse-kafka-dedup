@@ -140,7 +140,7 @@ def generate_report():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Endpoint Simulation Report</title>
+        <title>Dataset Info</title>
         <style>
             body {{ font-family: -apple-system, sans-serif; margin: 40px; background: #fafafa; color: #333; }}
             .container {{ max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }}
@@ -157,7 +157,7 @@ def generate_report():
     </head>
     <body>
         <div class="container">
-            <h1>Endpoint Simulation Report</h1>
+            <h1>Dataset Info</h1>
             
             <div class="stats-bar">
                 <div class="stat-card"><span class="stat-val">{unique_device_ids:,}</span> Number of unique DeviceIDs</div>
